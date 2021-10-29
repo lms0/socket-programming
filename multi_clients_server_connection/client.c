@@ -39,7 +39,7 @@ int main(int argc, char *argv[])
     row* rowReceived = malloc(sizeof(struct row));
     for(;;)
     {   
-        printf("Reading new row\n");
+        printf("Waiting for new row\n");
         ret = read(data_socket, rowReceived, sizeof(struct row));
         if (ret == -1) {
             perror("read");
@@ -53,13 +53,14 @@ int main(int argc, char *argv[])
         }
         addRowToTable(rowReceived);
         n_rows++; // increase number of rows present in the client's table
+        //printTable();
     }
 
-    printTable();
+    
 
     /* Close socket. */
-    close(data_socket);
-    exit(EXIT_SUCCESS);
+    //close(data_socket);
+    //exit(EXIT_SUCCESS);
 }
 
 void setUpClient(){
@@ -101,6 +102,12 @@ void setUpClient(){
 void addRowToTable(row* rowReceived){
     table = realloc(table, (n_rows+1) * sizeof(struct row));
     table[n_rows] = *rowReceived;
+    printf("added row number %d\n", n_rows);
+    printf("destination: %s\n", (table+n_rows)->destination);
+    printf("mask: %d\n", (table+n_rows)->mask);
+    printf("ip_gateway: %s\n", (table+n_rows)->gateway_ip);
+    printf("oif: %s\n", (table+n_rows)->oif);
+    printf("\n");
 }
 
 // print current table
