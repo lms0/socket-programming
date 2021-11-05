@@ -21,18 +21,34 @@ int n_rows = 0; // current rows of client's table
 void setUpClient();
 
 
+int searchRowByDestination(row* table, int n_rows, char* destToFind){
+
+    int pos = 0;
+    for (pos = 0; pos < n_rows; pos++)
+    {
+        if (strcmp(table[pos].destination, destToFind) == 0)
+        {
+            return pos;
+        }
+    } 
+    return -1;
+}
+
+void updateRow(row* table, int rowToUpdate, row r){
+
+    *(table + rowToUpdate) = r;   
+}
 
 int main(int argc, char *argv[])
 {
     setUpClient(); // socket(), connect()
     int i, ret;
-    row* rowReceived = malloc(sizeof(struct row));
-    
+    mssg* mReceived = malloc(sizeof(struct mssg));
+ 
     for(;;)
     {   
-        
         printf("Waiting for new row\n");
-        ret = read(data_socket, rowReceived, sizeof(struct row));
+        ret = read(data_socket, mReceived, sizeof(struct mssg));
         if (ret == -1) {
             perror("read");
             exit(EXIT_FAILURE);
@@ -43,11 +59,20 @@ int main(int argc, char *argv[])
             printf("Server closed connection, Adieu!\n");
             break;
         }
-        printf("About to add new row\n");
-        rowReceived = addRowToTable(&table, n_rows, rowReceived);
-        //addRowToTable(rowReceived);
-        n_rows++; // increase number of rows present in the client's table
-        printTable(table, n_rows);
+        if (mReceived->op_code == 1)
+        {
+            printf("About to add new row\n");
+            mReceived = addRowToTable(&table, n_rows, mReceived);
+            n_rows++; // increase number of rows present in the client's table
+            printTable(table, n_rows);
+        }
+        else if (mReceived->op_code == 2)
+        {
+            printf("About to update a row\n");
+            int pos = searchRowByDestination(table, n_rows, mReceived->body.destination);
+            updateRow(table, pos, mReceived->body);
+            printTable(table, n_rows);
+        }
     }
 
     /* Close socket. */

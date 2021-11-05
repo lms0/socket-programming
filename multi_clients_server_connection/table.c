@@ -18,8 +18,9 @@ void printTable(row* table, int n_rows){
     }
 }
 
-row* addRowToTable(row** table, int n_rows, row* rowReceived){
+mssg* addRowToTable(row** table, int n_rows, mssg* mReceived){
     *table = realloc(*table, (n_rows+1) * sizeof(struct row));
-    (*table)[n_rows] = *rowReceived;
-    return rowReceived;
+    (*table)[n_rows] = mReceived->body;
+    return mReceived;
+ 
 }

@@ -21,7 +21,6 @@ int n_rows; // number of rows in server's table
 row* table; // server's table
 
 
-
 int main(int argc, char *argv[])
 {
     int ret;
@@ -39,6 +38,8 @@ int main(int argc, char *argv[])
     int i;
     n_rows = 3;
     table = malloc(n_rows * sizeof(struct row)); // allocate for 3 initial rows
+    mssg* m = malloc(sizeof(struct mssg)); // allocate memory for message to send
+
     for(i = 0; i < n_rows; i++)
     {
       strcpy((table+i)->destination ,"122.0.0.0");
@@ -76,9 +77,11 @@ int main(int argc, char *argv[])
 
             /* Send complete array, row by row */
             for (i = 0; i < n_rows ; i++)
-            {
-                printf("sending new row to client\n");
-                ret = write(data_socket, (table+i), sizeof(struct row));
+            {   
+                m->op_code = 1; // create 
+                m->body = *(table+i);
+                ret = write(data_socket, m, sizeof(struct mssg)); // send complete message with op code too
+                printf("op code is %d\n", m->op_code);
                 if (ret == -1) {
                     perror("write");
                     exit(EXIT_FAILURE);
@@ -173,10 +176,13 @@ void setUpServer(){
 void dumpRowToAllClients(){
 
     int fd_pos = 2; // set initial fd set to 2, as the first two are terminal and master sockets, not clients
-
+    mssg* m = malloc(sizeof(struct mssg));
+    m->op_code = 1; // create 
+    m->body = *(table+(n_rows-1)); // last row
     while (monitored_fd_set[fd_pos] != -1)
     {
-        int ret = write(monitored_fd_set[fd_pos], (table+(n_rows-1)), sizeof(struct row)); // TODO: IMPLEMENT A DUMP() FOR ALL CONNECTED CLIENTS
+        
+        int ret = write(monitored_fd_set[fd_pos], m, sizeof(struct mssg)); 
         if (ret == -1) {
             perror("write");
             exit(EXIT_FAILURE);
@@ -184,6 +190,40 @@ void dumpRowToAllClients(){
         fd_pos++;
     }
 
+}
+
+
+void updateRowToAllClients(int pos){
+
+    int fd_pos = 2; // set initial fd set to 2, as the first two are terminal and master sockets, not clients
+    mssg* m = malloc(sizeof(struct mssg));
+    m->op_code = 2; // update 
+    m->body = *(table+pos); 
+    while (monitored_fd_set[fd_pos] != -1)
+    {
+        
+        int ret = write(monitored_fd_set[fd_pos], m, sizeof(struct mssg)); 
+        if (ret == -1) {
+            perror("write");
+            exit(EXIT_FAILURE);
+        }
+        fd_pos++;
+    }
+
+}
+
+// returns row number on table that has a certain destination
+int searchRowByDestination(row* table, int n_rows, char* destToFind){
+
+    int pos = 0;
+    for (pos = 0; pos < n_rows; pos++)
+    {
+        if (strcmp(table[pos].destination, destToFind) == 0)
+        {
+            return pos;
+        }
+    } 
+    return -1;
 }
 
 void handle_console_data(char* buffer){
@@ -244,6 +284,27 @@ void handle_console_data(char* buffer){
             /* Send (insert!) only last row */
             dumpRowToAllClients();
             
+        }
+        else if (commandType == 'u' || commandType == 'U' )
+        {
+            printf("Row will be searched\n");
+            int pos = searchRowByDestination(table, n_rows, receivedRow.destination);
+            if ( pos == -1)
+            {
+                printf("Row was not found\n");
+            }
+            else
+            {
+                printf("Updating row...\n");
+                (table+pos)->mask = receivedRow.mask;
+                strcpy((table+pos)->gateway_ip ,receivedRow.gateway_ip);
+                strcpy((table+pos)->oif ,receivedRow.oif);
+
+                printf("Sending modified row to clients\n");
+                updateRowToAllClients(pos);
+            }
+                
+
         }
         
     }

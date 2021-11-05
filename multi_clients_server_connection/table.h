@@ -10,8 +10,19 @@ typedef struct row{       // row of ARP table
     char oif[32];
 }row;
 
+typedef enum{
+    CREATE,
+    UPDATE,
+    DELETE
+}OPCODE;
+
+typedef struct mssg{
+    OPCODE op_code;
+    row body;
+}mssg;
+
 void printTable(row* table, int n_rows); // show table
-row* addRowToTable(row** table, int n_rows, row* rowReceived);  
+mssg* addRowToTable(row** table, int n_rows, mssg* mReceived);  
 
 
 #endif // TABLE_H_
