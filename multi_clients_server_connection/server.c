@@ -1,10 +1,10 @@
-// Server side
-// Send array of rows (a struct that contains rows of the ARP table) to multiple clients
+// Server 
+// Sends an array of rows (a struct that contains rows of the table) to multiple clients
 // The table contains rows as a dynamic array
 
-#include <stdlib.h> // strtol
 #include "fd_monitor.h" 
 #include "table.h"
+#include "terminalInput.h"
 
 #define SOCKET_NAME "/tmp/DemoSocket"
 #define BUFFER_SIZE 128
@@ -14,8 +14,6 @@ int connection_socket; // server socket
 
 
 void setUpServer();  // set up server: socket(), bind(), listen()
-void handle_console_data(char* buffer);
-void dumpRowToAllClients();
 
 int n_rows; // number of rows in server's table
 row* table; // server's table
@@ -34,19 +32,12 @@ int main(int argc, char *argv[])
     /*Add master socket to Monitored set of FDs*/
     add_to_monitored_fd_set(connection_socket,monitored_fd_set, MAX_CLIENT_SUPPORTED); // add master socket file descriptor
 
-    // Table initialization: 3 rows
-    int i;
-    n_rows = 3;
-    table = malloc(n_rows * sizeof(struct row)); // allocate for 3 initial rows
-    mssg* m = malloc(sizeof(struct mssg)); // allocate memory for message to send
+    
+    int i; // for loop index
+    // Message initialization
+    mssg* m = malloc(sizeof(struct mssg));       // allocate memory for message to send
 
-    for(i = 0; i < n_rows; i++)
-    {
-      strcpy((table+i)->destination ,"122.0.0.0");
-      (table+i)->mask = 1 + i;
-      strcpy((table+i)->gateway_ip ,"1.0.0.0");
-      strcpy((table+i)->oif ,"ETH");
-    }
+   
     printTable(table, n_rows);
 
     for (;;) 
@@ -73,32 +64,26 @@ int main(int argc, char *argv[])
             printf("Connection accepted from client\n");
 
             add_to_monitored_fd_set(data_socket,monitored_fd_set,MAX_CLIENT_SUPPORTED);
-            print_monitored_fd_set(monitored_fd_set,MAX_CLIENT_SUPPORTED); // delete
 
+            printf("n_rows is  %d\n", n_rows);
             /* Send complete array, row by row */
             for (i = 0; i < n_rows ; i++)
             {   
+                printf("sending row number %d\n", i);
                 m->op_code = 1; // create 
                 m->body = *(table+i);
                 ret = write(data_socket, m, sizeof(struct mssg)); // send complete message with op code too
-                printf("op code is %d\n", m->op_code);
                 if (ret == -1) {
                     perror("write");
                     exit(EXIT_FAILURE);
                 }
             }
-            
-            /* Close socket. */
-            //close(data_socket);
-            //remove_from_monitored_fd_set(data_socket);
-
-
         }
         else if(FD_ISSET(0, &readfds)){
             memset(buffer, 0, BUFFER_SIZE);
             ret = read(0, buffer, BUFFER_SIZE);
             printf("Input read from console : %s\n", buffer);
-            handle_console_data(buffer);
+            handle_console_data(buffer, &table, &n_rows, monitored_fd_set);
         }
 
        
@@ -173,142 +158,10 @@ void setUpServer(){
 
 
 
-void dumpRowToAllClients(){
-
-    int fd_pos = 2; // set initial fd set to 2, as the first two are terminal and master sockets, not clients
-    mssg* m = malloc(sizeof(struct mssg));
-    m->op_code = 1; // create 
-    m->body = *(table+(n_rows-1)); // last row
-    while (monitored_fd_set[fd_pos] != -1)
-    {
-        
-        int ret = write(monitored_fd_set[fd_pos], m, sizeof(struct mssg)); 
-        if (ret == -1) {
-            perror("write");
-            exit(EXIT_FAILURE);
-        }
-        fd_pos++;
-    }
-
-}
 
 
-void updateRowToAllClients(int pos){
 
-    int fd_pos = 2; // set initial fd set to 2, as the first two are terminal and master sockets, not clients
-    mssg* m = malloc(sizeof(struct mssg));
-    m->op_code = 2; // update 
-    m->body = *(table+pos); 
-    while (monitored_fd_set[fd_pos] != -1)
-    {
-        
-        int ret = write(monitored_fd_set[fd_pos], m, sizeof(struct mssg)); 
-        if (ret == -1) {
-            perror("write");
-            exit(EXIT_FAILURE);
-        }
-        fd_pos++;
-    }
 
-}
-
-// returns row number on table that has a certain destination
-int searchRowByDestination(row* table, int n_rows, char* destToFind){
-
-    int pos = 0;
-    for (pos = 0; pos < n_rows; pos++)
-    {
-        if (strcmp(table[pos].destination, destToFind) == 0)
-        {
-            return pos;
-        }
-    } 
-    return -1;
-}
-
-void handle_console_data(char* buffer){
-
-    char commandType;
-    row receivedRow;  // struct to save the received data
-    char str[100];    // COPIED string input by user
-    strcpy(str ,buffer);
-    
-    int n_tokens = 0;
-    char * pch; 
-     
-    // make sure the number of arguments is = 5
-    pch = strtok (str," ,-");
-    while (pch != NULL)
-    {
-        pch = strtok (NULL, " ,-");  
-        n_tokens++;
-    } 
-    printf("n_tokens = %d\n", n_tokens);
-    if (n_tokens != 5)
-    {
-        printf("Could not read 5 tokens, please write it like: \n");
-        printf("COMMAND_LETTER <IP> <MASK_NUMBER> <GATEWAY_IP> <OIF>\n");
-    }
-    else
-    {
-        pch = strtok (buffer," ,-");
-        commandType = *pch;
-        printf("Operation type: %c\n", commandType);
-        pch = strtok (NULL, " ,-");
-        strcpy(receivedRow.destination ,pch);
-        pch = strtok (NULL, " ,-");
-        receivedRow.mask = strtol(pch, NULL, 10);
-        pch = strtok (NULL, " ,-");
-        strcpy(receivedRow.gateway_ip ,pch);
-        pch = strtok (NULL, " ,-");
-        strcpy(receivedRow.oif ,pch);
-
-        printf ("%s\n",receivedRow.destination);
-        printf ("%d\n",receivedRow.mask);
-        printf ("%s\n",receivedRow.gateway_ip);
-        printf ("%s\n",receivedRow.oif);
-
-        if (commandType == 'c' || commandType == 'C' )
-        {
-            printf("Row will be created\n");
-            n_rows++;
-            table = realloc(table, n_rows * sizeof(struct row));    
-            strcpy((table+(n_rows-1))->destination ,receivedRow.destination);
-            (table+(n_rows-1))->mask = receivedRow.mask;
-            strcpy((table+(n_rows-1))->gateway_ip ,receivedRow.gateway_ip);
-            strcpy((table+(n_rows-1))->oif ,receivedRow.oif);
-
-            printTable(table,n_rows);
-
-            printf("Sending new row to clients\n");
-            /* Send (insert!) only last row */
-            dumpRowToAllClients();
-            
-        }
-        else if (commandType == 'u' || commandType == 'U' )
-        {
-            printf("Row will be searched\n");
-            int pos = searchRowByDestination(table, n_rows, receivedRow.destination);
-            if ( pos == -1)
-            {
-                printf("Row was not found\n");
-            }
-            else
-            {
-                printf("Updating row...\n");
-                (table+pos)->mask = receivedRow.mask;
-                strcpy((table+pos)->gateway_ip ,receivedRow.gateway_ip);
-                strcpy((table+pos)->oif ,receivedRow.oif);
-
-                printf("Sending modified row to clients\n");
-                updateRowToAllClients(pos);
-            }
-                
-
-        }
-        
-    }
-}
 
 
 

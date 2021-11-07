@@ -1,10 +1,10 @@
-// Client side
+// Client 
 // Receives data for a table, row by row
+// The row can be created or updated
 
 #include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
 #include <sys/socket.h>
 #include <sys/un.h>
 #include <unistd.h>
@@ -20,24 +20,6 @@ int n_rows = 0; // current rows of client's table
 
 void setUpClient();
 
-
-int searchRowByDestination(row* table, int n_rows, char* destToFind){
-
-    int pos = 0;
-    for (pos = 0; pos < n_rows; pos++)
-    {
-        if (strcmp(table[pos].destination, destToFind) == 0)
-        {
-            return pos;
-        }
-    } 
-    return -1;
-}
-
-void updateRow(row* table, int rowToUpdate, row r){
-
-    *(table + rowToUpdate) = r;   
-}
 
 int main(int argc, char *argv[])
 {
@@ -74,10 +56,6 @@ int main(int argc, char *argv[])
             printTable(table, n_rows);
         }
     }
-
-    /* Close socket. */
-    //close(data_socket);
-    //exit(EXIT_SUCCESS);
 }
 
 void setUpClient(){
